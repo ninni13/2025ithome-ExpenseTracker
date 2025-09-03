@@ -10,15 +10,6 @@ class AuthManager: ObservableObject {
     
     init() {
         print("AuthManager init called")
-        // 強制清除所有快取（開發時使用）
-        #if DEBUG
-        do {
-            try Auth.auth().signOut()
-            print("DEBUG: Forced sign out to clear cache")
-        } catch {
-            print("DEBUG: Error clearing cache: \(error)")
-        }
-        #endif
         
         // 檢查是否已經登入
         if let user = Auth.auth().currentUser {

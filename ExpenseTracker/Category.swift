@@ -26,3 +26,4 @@ struct Category: Identifiable, Codable {
         self.createdAt = createdAt.dateValue()
     }
 }
+

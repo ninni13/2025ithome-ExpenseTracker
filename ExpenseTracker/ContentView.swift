@@ -12,16 +12,14 @@ import FirebaseFirestore
 struct Expense: Identifiable, Codable {
     let id: UUID
     let amount: Double
+    let category: String
     let date: Date
-    let categoryId: String
-    let categoryName: String
     
-    init(id: UUID = UUID(), amount: Double, date: Date, categoryId: String, categoryName: String) {
+    init(id: UUID = UUID(), amount: Double, category: String = "一般", date: Date) {
         self.id = id
         self.amount = amount
+        self.category = category
         self.date = date
-        self.categoryId = categoryId
-        self.categoryName = categoryName
     }
 }
 
@@ -32,12 +30,9 @@ class ExpenseStore: ObservableObject {
     private var listenerRegistration: FirebaseFirestore.ListenerRegistration?
     
     func startListening(userId: String) {
-        print("ExpenseStore: Starting to listen for expenses for user: \(userId)")
         listenerRegistration = firestoreService.listenToExpenses(userId: userId) { [weak self] expenses in
-            print("ExpenseStore: Received \(expenses.count) expenses from Firestore")
             DispatchQueue.main.async {
                 self?.expenses = expenses
-                print("ExpenseStore: Updated expenses array with \(expenses.count) items")
             }
         }
     }
@@ -47,8 +42,8 @@ class ExpenseStore: ObservableObject {
         listenerRegistration = nil
     }
     
-    func add(amount: Double, date: Date, categoryId: String, categoryName: String, userId: String) {
-        let expense = Expense(amount: amount, date: date, categoryId: categoryId, categoryName: categoryName)
+    func add(amount: Double, category: String, date: Date, userId: String) {
+        let expense = Expense(amount: amount, category: category, date: date)
         firestoreService.addExpense(userId: userId, expense: expense)
     }
     
@@ -63,6 +58,36 @@ class ExpenseStore: ObservableObject {
         return expenses
             .filter { calendar.isDate($0.date, equalTo: currentDate, toGranularity: .month) }
             .reduce(0) { $0 + $1.amount }
+    }
+    
+    // 計算本月各分類的統計
+    var monthlyCategorySummaries: [CategorySummary] {
+        let calendar = Calendar.current
+        let currentDate = Date()
+        
+        // 過濾本月的支出
+        let monthlyExpenses = expenses.filter { expense in
+            calendar.isDate(expense.date, equalTo: currentDate, toGranularity: .month)
+        }
+        
+        print("ExpenseStore: Found \(monthlyExpenses.count) expenses for current month")
+        for expense in monthlyExpenses {
+            print("ExpenseStore: \(expense.category) - $\(expense.amount) - \(expense.date)")
+        }
+        
+        // 按類別分組並計算總額
+        var categoryTotals: [String: Double] = [:]
+        
+        for expense in monthlyExpenses {
+            categoryTotals[expense.category, default: 0] += expense.amount
+        }
+        
+        print("ExpenseStore: Category totals: \(categoryTotals)")
+        
+        // 轉換為 CategorySummary 陣列
+        return categoryTotals.map { categoryName, total in
+            CategorySummary(categoryName: categoryName, total: total)
+        }.sorted { $0.total > $1.total }
     }
 }
 
@@ -99,7 +124,8 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
+            ScrollView {
+                VStack(spacing: 20) {
                 // Input Section
                 VStack(spacing: 16) {
                     HStack {
@@ -139,7 +165,8 @@ struct ContentView: View {
                     Button("新增紀錄") {
                         if let userId = authManager.currentUser?.uid {
                             if let category = categoryStore.categories.first(where: { $0.id == selectedCategoryId }) {
-                                expenseStore.add(amount: amount, date: selectedDate, categoryId: category.id, categoryName: category.name, userId: userId)
+                                print("ContentView: Adding expense - Amount: \(amount), Category: \(category.name), Date: \(selectedDate)")
+                                expenseStore.add(amount: amount, category: category.name, date: selectedDate, userId: userId)
                                 amountText = ""
                                 selectedCategoryId = ""
                             }
@@ -163,34 +190,63 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
                 
-                // Expenses List
-                List {
-                    ForEach(expenseStore.expenses.sorted(by: { $0.date > $1.date })) { expense in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(dateFormatter.string(from: expense.date))
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
-                                Text(expense.categoryName)
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
-                            Spacer()
-                            Text(numberFormatter.string(from: NSNumber(value: expense.amount)) ?? "$0")
-                                .fontWeight(.medium)
+                // Historical Records
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("歷史紀錄")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    if expenseStore.expenses.isEmpty {
+                        VStack {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 30))
+                                .foregroundColor(.gray)
+                            Text("尚無支出紀錄")
+                                .foregroundColor(.gray)
+                                .padding(.top, 8)
                         }
-                    }
-                    .onDelete { indexSet in
-                        for index in indexSet {
-                            let expense = expenseStore.expenses.sorted(by: { $0.date > $1.date })[index]
-                            if let userId = authManager.currentUser?.uid {
-                                expenseStore.delete(expense: expense, userId: userId)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                    } else {
+                        LazyVStack(spacing: 8) {
+                            ForEach(expenseStore.expenses.sorted(by: { $0.date > $1.date })) { expense in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(dateFormatter.string(from: expense.date))
+                                            .foregroundColor(.secondary)
+                                            .font(.caption)
+                                        Text(expense.category)
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                    }
+                                    Spacer()
+                                    Text(numberFormatter.string(from: NSNumber(value: expense.amount)) ?? "$0")
+                                        .fontWeight(.medium)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                                .contextMenu {
+                                    Button("刪除", role: .destructive) {
+                                        if let userId = authManager.currentUser?.uid {
+                                            expenseStore.delete(expense: expense, userId: userId)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                
+                // Charts Section
+                ExpenseChartsView(
+                    categorySummaries: expenseStore.monthlyCategorySummaries
+                )
+                }
             }
-            .navigationTitle("記帳本")
+            .navigationTitle("霓的記帳本")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: Button("類別管理") {
                     showingCategoryManagement = true

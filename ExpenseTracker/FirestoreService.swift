@@ -10,8 +10,7 @@ class FirestoreService: ObservableObject {
             "id": expense.id.uuidString,
             "amount": expense.amount,
             "date": expense.date,
-            "categoryId": expense.categoryId,
-            "categoryName": expense.categoryName
+            "category": expense.category
         ]) { error in
             if let error = error {
                 print("Error adding expense: \(error)")
@@ -49,13 +48,17 @@ class FirestoreService: ObservableObject {
                         return nil
                     }
                     
-                    // 檢查分類欄位（可選）
-                    let categoryId = data["categoryId"] as? String ?? "default"
-                    let categoryName = data["categoryName"] as? String ?? "未分類"
+                    // 檢查分類欄位（支援舊格式和新格式）
+                    var category = "未分類"  // 改為「未分類」
+                    if let newCategory = data["category"] as? String {
+                        category = newCategory
+                    } else if let oldCategoryName = data["categoryName"] as? String {
+                        category = oldCategoryName
+                    }
                     
-                    print("Firestore: Creating expense with categoryId: \(categoryId), categoryName: \(categoryName)")
+                    print("Firestore: Creating expense with category: \(category), amount: \(amount)")
                     
-                    return Expense(id: id, amount: amount, date: date.dateValue(), categoryId: categoryId, categoryName: categoryName)
+                    return Expense(id: id, amount: amount, category: category, date: date.dateValue())
                 }
                 
                 completion(expenses)

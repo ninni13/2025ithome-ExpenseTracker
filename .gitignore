@@ -94,3 +94,6 @@ iOSInjectionProject/
 
 # Firebase
 GoogleService-Info.plist
+
+# Swift Charts (iOS 16+)
+# 注意：Swift Charts 需要 iOS 16.0+ 才能使用
