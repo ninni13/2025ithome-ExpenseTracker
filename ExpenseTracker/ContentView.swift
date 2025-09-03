@@ -12,14 +12,16 @@ import FirebaseFirestore
 struct Expense: Identifiable, Codable {
     let id: UUID
     let amount: Double
-    let category: String
     let date: Date
+    let categoryId: String
+    let categoryName: String
     
-    init(id: UUID = UUID(), amount: Double, category: String = "一般", date: Date) {
+    init(id: UUID = UUID(), amount: Double, date: Date, categoryId: String, categoryName: String) {
         self.id = id
         self.amount = amount
-        self.category = category
         self.date = date
+        self.categoryId = categoryId
+        self.categoryName = categoryName
     }
 }
 
@@ -30,9 +32,12 @@ class ExpenseStore: ObservableObject {
     private var listenerRegistration: FirebaseFirestore.ListenerRegistration?
     
     func startListening(userId: String) {
+        print("ExpenseStore: Starting to listen for expenses for user: \(userId)")
         listenerRegistration = firestoreService.listenToExpenses(userId: userId) { [weak self] expenses in
+            print("ExpenseStore: Received \(expenses.count) expenses from Firestore")
             DispatchQueue.main.async {
                 self?.expenses = expenses
+                print("ExpenseStore: Updated expenses array with \(expenses.count) items")
             }
         }
     }
@@ -42,8 +47,8 @@ class ExpenseStore: ObservableObject {
         listenerRegistration = nil
     }
     
-    func add(amount: Double, category: String, date: Date, userId: String) {
-        let expense = Expense(amount: amount, category: category, date: date)
+    func add(amount: Double, date: Date, categoryId: String, categoryName: String, userId: String) {
+        let expense = Expense(amount: amount, date: date, categoryId: categoryId, categoryName: categoryName)
         firestoreService.addExpense(userId: userId, expense: expense)
     }
     
@@ -65,11 +70,11 @@ class ExpenseStore: ObservableObject {
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var expenseStore: ExpenseStore
+    @EnvironmentObject var categoryStore: CategoryStore
     @State private var amountText = ""
     @State private var selectedDate = Date()
-    @State private var selectedCategory = "一般"
-    
-    private let categories = ["一般", "飲食", "交通", "購物", "娛樂", "醫療", "其他"]
+    @State private var selectedCategoryId = ""
+    @State private var showingCategoryManagement = false
     
     private let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -108,12 +113,20 @@ struct ContentView: View {
                     HStack {
                         Text("分類:")
                             .frame(width: 60, alignment: .leading)
-                        Picker("分類", selection: $selectedCategory) {
-                            ForEach(categories, id: \.self) { category in
-                                Text(category).tag(category)
+                        if categoryStore.categories.isEmpty {
+                            Button("新增類別") {
+                                showingCategoryManagement = true
                             }
+                            .foregroundColor(.blue)
+                        } else {
+                            Picker("分類", selection: $selectedCategoryId) {
+                                Text("請選擇類別").tag("")
+                                ForEach(categoryStore.categories) { category in
+                                    Text(category.name).tag(category.id)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
                         }
-                        .pickerStyle(MenuPickerStyle())
                     }
                     
                     HStack {
@@ -125,11 +138,14 @@ struct ContentView: View {
                     
                     Button("新增紀錄") {
                         if let userId = authManager.currentUser?.uid {
-                            expenseStore.add(amount: amount, category: selectedCategory, date: selectedDate, userId: userId)
-                            amountText = ""
+                            if let category = categoryStore.categories.first(where: { $0.id == selectedCategoryId }) {
+                                expenseStore.add(amount: amount, date: selectedDate, categoryId: category.id, categoryName: category.name, userId: userId)
+                                amountText = ""
+                                selectedCategoryId = ""
+                            }
                         }
                     }
-                    .disabled(isAddButtonDisabled)
+                    .disabled(isAddButtonDisabled || selectedCategoryId.isEmpty)
                     .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -155,7 +171,7 @@ struct ContentView: View {
                                 Text(dateFormatter.string(from: expense.date))
                                     .foregroundColor(.secondary)
                                     .font(.caption)
-                                Text(expense.category)
+                                Text(expense.categoryName)
                                     .font(.caption)
                                     .foregroundColor(.blue)
                             }
@@ -175,18 +191,31 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("記帳本")
-            .navigationBarItems(trailing: Button("登出") {
-                authManager.signOut()
-            })
+            .navigationBarItems(
+                leading: Button("類別管理") {
+                    showingCategoryManagement = true
+                },
+                trailing: Button("登出") {
+                    authManager.signOut()
+                }
+            )
             .padding()
         }
         .onAppear {
             if let userId = authManager.currentUser?.uid {
+                print("ContentView: User ID: \(userId)")
                 expenseStore.startListening(userId: userId)
+                categoryStore.startListening(userId: userId)
+            } else {
+                print("ContentView: No user ID found")
             }
         }
         .onDisappear {
             expenseStore.stopListening()
+            categoryStore.stopListening()
+        }
+        .sheet(isPresented: $showingCategoryManagement) {
+            CategoryManagementView()
         }
     }
 }
@@ -195,4 +224,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(AuthManager())
         .environmentObject(ExpenseStore())
+        .environmentObject(CategoryStore())
 }

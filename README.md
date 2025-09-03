@@ -82,19 +82,26 @@ users/{userId}/expenses/{expenseId}
 - 所有資料會自動同步到雲端
 - 支援離線使用（資料會在下一次連線時同步）
 
-## 功能演進 (Day 3 MVP)
-Day 3 (MVP)
+## 功能演進 
+### Day 3 (MVP)
 - 新增支出：輸入金額與日期，立即顯示在清單中
 - 清單顯示：每筆支出會顯示「日期 | 金額」
 - 支援左滑刪除
 - 自動加總「本月總支出」
 - 使用 UserDefaults + Codable 持久化資料，重開 App 後紀錄仍存在
 
-Day 4 (雲端同步)
+### Day 4 (雲端同步)
 - 加入 Google 登入（Firebase Authentication）
 - 所有資料改存 Cloud Firestore
 - 每位使用者的支出獨立存放在 users/{uid}/expenses
 - 支援跨裝置同步，換機或刪除 App 只要重新登入 Google，紀錄就能回來
+
+### Day 5 (分類／標籤管理)
+- 新增「類別」功能：可建立、重新命名、刪除類別
+- Firestore 結構改為每位使用者自有類別 users/{uid}/categories，支出放 users/{uid}/expenses
+- 新增支出必選類別；支出文件同時寫入 categoryId 與 categoryName（去正規化，列表直接顯示名稱）
+- 類別改名時，批次更新該使用者所有相關支出的 categoryName
+- 若類別已被使用，阻擋刪除並提示使用者
 
 ## 技術棧
 - **SwiftUI**

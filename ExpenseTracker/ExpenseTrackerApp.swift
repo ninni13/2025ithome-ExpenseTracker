@@ -13,23 +13,20 @@ struct ExpenseTrackerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var authManager = AuthManager()
     @StateObject private var expenseStore = ExpenseStore()
-    
-
+    @StateObject private var categoryStore = CategoryStore()
     
     var body: some Scene {
         WindowGroup {
-            ZStack {
+            Group {
                 if authManager.isSignedIn {
                     ContentView()
                         .environmentObject(authManager)
                         .environmentObject(expenseStore)
+                        .environmentObject(categoryStore)
                 } else {
                     LoginView()
                         .environmentObject(authManager)
                 }
-            }
-            .onAppear {
-                print("App appeared, isSignedIn: \(authManager.isSignedIn)")
             }
         }
     }

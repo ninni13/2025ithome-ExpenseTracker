@@ -9,8 +9,9 @@ class FirestoreService: ObservableObject {
         db.collection("users").document(userId).collection("expenses").document(expense.id.uuidString).setData([
             "id": expense.id.uuidString,
             "amount": expense.amount,
-            "category": expense.category,
-            "date": expense.date
+            "date": expense.date,
+            "categoryId": expense.categoryId,
+            "categoryName": expense.categoryName
         ]) { error in
             if let error = error {
                 print("Error adding expense: \(error)")
@@ -37,15 +38,24 @@ class FirestoreService: ObservableObject {
                 
                 let expenses = documents.compactMap { document -> Expense? in
                     let data = document.data()
+                    print("Firestore: Document data: \(data)")
+                    
+                    // 檢查是否有必要的欄位
                     guard let idString = data["id"] as? String,
                           let id = UUID(uuidString: idString),
                           let amount = data["amount"] as? Double,
-                          let category = data["category"] as? String,
                           let date = data["date"] as? Timestamp else {
+                        print("Firestore: Missing required fields in document")
                         return nil
                     }
                     
-                    return Expense(id: id, amount: amount, category: category, date: date.dateValue())
+                    // 檢查分類欄位（可選）
+                    let categoryId = data["categoryId"] as? String ?? "default"
+                    let categoryName = data["categoryName"] as? String ?? "未分類"
+                    
+                    print("Firestore: Creating expense with categoryId: \(categoryId), categoryName: \(categoryName)")
+                    
+                    return Expense(id: id, amount: amount, date: date.dateValue(), categoryId: categoryId, categoryName: categoryName)
                 }
                 
                 completion(expenses)
