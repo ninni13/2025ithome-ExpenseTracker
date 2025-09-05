@@ -178,9 +178,15 @@ struct ContentView: View {
     @State private var noteText = ""
     @State private var showingCategoryManagement = false
     @State private var showingBudgetSettings = false
+    // 用於以 item 綁定的分享（避免空白 Share Sheet）
+    struct ShareFile: Identifiable { let id = UUID(); let url: URL }
+    @State private var shareFile: ShareFile?
     
     // 篩選相關狀態
     @State private var filterState = FilterState()
+    
+    // 匯出服務
+    private let exportService = ExportService()
     
     private let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -242,6 +248,52 @@ struct ContentView: View {
             let index = note.index(note.startIndex, offsetBy: 20)
             return String(note[..<index]) + "..."
         }
+    }
+    
+    // 匯出功能
+    private func exportExpenses(format: ExportFormat) {
+        let allExpenses = expenseStore.expenses.sorted { $0.date < $1.date }
+        
+        print("ExportService: Total expenses to export: \(allExpenses.count)")
+        
+        guard !allExpenses.isEmpty else {
+            print("ExportService: No expenses to export")
+            return
+        }
+        
+        var fileURL: URL?
+        
+        switch format {
+        case .csv:
+            fileURL = exportService.exportToCSV(expenses: allExpenses)
+            print("ExportService: CSV export result: \(fileURL?.absoluteString ?? "nil")")
+        case .json:
+            fileURL = exportService.exportToJSON(expenses: allExpenses)
+            print("ExportService: JSON export result: \(fileURL?.absoluteString ?? "nil")")
+        }
+        
+        if let url = fileURL {
+            print("ExportService: File created successfully, showing share sheet")
+            print("ExportService: File URL: \(url.absoluteString)")
+            print("ExportService: File exists: \(FileManager.default.fileExists(atPath: url.path))")
+            
+            // 確保檔案存在且可讀
+            if FileManager.default.fileExists(atPath: url.path) {
+                print("ExportService: Setting share item and presenting sheet")
+                // 以 item 綁定，確保 UIActivityViewController 初始化時就有項目
+                shareFile = ShareFile(url: url)
+            } else {
+                print("ExportService: File does not exist, cannot share")
+            }
+        } else {
+            print("ExportService: Failed to create file")
+        }
+    }
+    
+    // 匯出格式枚舉
+    enum ExportFormat {
+        case csv
+        case json
     }
     
     var body: some View {
@@ -470,6 +522,7 @@ struct ContentView: View {
                                         .foregroundColor(.red)
                                 }
                                 .padding(.horizontal)
+                                
                     
                     if filteredExpenses.isEmpty {
         VStack {
@@ -550,8 +603,24 @@ struct ContentView: View {
                             .font(.caption)
                     }
                 },
-                trailing: Button("登出") {
-                    authManager.signOut()
+                trailing: HStack(spacing: 16) {
+                    // 匯出按鈕
+                    Menu {
+                        Button("匯出 CSV") {
+                            exportExpenses(format: .csv)
+                        }
+                        Button("匯出 JSON") {
+                            exportExpenses(format: .json)
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    // 登出按鈕
+                    Button("登出") {
+                        authManager.signOut()
+                    }
                 }
             )
             .padding()
@@ -576,6 +645,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingBudgetSettings) {
             BudgetSettingsView()
+        }
+        .sheet(item: $shareFile) { item in
+            // 透過 CSVActivityItemSource 宣告 UTI，讓分享面板識別為 CSV
+            ShareSheet(items: [CSVActivityItemSource(fileURL: item.url)])
+                .onAppear {
+                    print("ShareSheet: Appeared with 1 items")
+                    print("ShareSheet: First item is URL: \(item.url.absoluteString)")
+                }
         }
     }
 }
