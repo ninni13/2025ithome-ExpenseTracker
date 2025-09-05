@@ -86,13 +86,15 @@ struct Expense: Identifiable, Codable {
     let categoryId: String   // Firestore 的 categoryId
     let categoryName: String // 顯示用的名稱（去正規化）
     let date: Date
+    let note: String?        // 備註欄位（選填）
     
-    init(id: UUID = UUID(), amount: Double, categoryId: String, categoryName: String, date: Date) {
+    init(id: UUID = UUID(), amount: Double, categoryId: String, categoryName: String, date: Date, note: String? = nil) {
         self.id = id
         self.amount = amount
         self.categoryId = categoryId
         self.categoryName = categoryName
         self.date = date
+        self.note = note
     }
 }
 
@@ -115,8 +117,8 @@ class ExpenseStore: ObservableObject {
         listenerRegistration = nil
     }
     
-    func add(amount: Double, categoryId: String, categoryName: String, date: Date, userId: String) {
-        let expense = Expense(amount: amount, categoryId: categoryId, categoryName: categoryName, date: date)
+    func add(amount: Double, categoryId: String, categoryName: String, date: Date, userId: String, note: String? = nil) {
+        let expense = Expense(amount: amount, categoryId: categoryId, categoryName: categoryName, date: date, note: note)
         firestoreService.addExpense(userId: userId, expense: expense)
     }
     
@@ -173,6 +175,7 @@ struct ContentView: View {
     @State private var amountText = ""
     @State private var selectedDate = Date()
     @State private var selectedCategoryId = ""
+    @State private var noteText = ""
     @State private var showingCategoryManagement = false
     @State private var showingBudgetSettings = false
     
@@ -231,6 +234,16 @@ struct ContentView: View {
         amount <= 0
     }
     
+    // 截斷備註文字，超過 20 字加上 "..."
+    private func truncateNote(_ note: String) -> String {
+        if note.count <= 20 {
+            return note
+        } else {
+            let index = note.index(note.startIndex, offsetBy: 20)
+            return String(note[..<index]) + "..."
+        }
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -271,13 +284,22 @@ struct ContentView: View {
                             .labelsHidden()
                     }
                     
+                    HStack {
+                        Text("備註:")
+                            .frame(width: 60, alignment: .leading)
+                        TextField("備註（選填）", text: $noteText)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    
                     Button("新增紀錄") {
                         if let userId = authManager.currentUser?.uid {
                             if let category = categoryStore.categories.first(where: { $0.id == selectedCategoryId }) {
-                                print("ContentView: Adding expense - Amount: \(amount), Category: \(category.name), Date: \(selectedDate)")
-                                expenseStore.add(amount: amount, categoryId: selectedCategoryId, categoryName: category.name, date: selectedDate, userId: userId)
+                                let note = noteText.isEmpty ? nil : noteText
+                                print("ContentView: Adding expense - Amount: \(amount), Category: \(category.name), Date: \(selectedDate), Note: \(note ?? "nil")")
+                                expenseStore.add(amount: amount, categoryId: selectedCategoryId, categoryName: category.name, date: selectedDate, userId: userId, note: note)
                                 amountText = ""
                                 selectedCategoryId = ""
+                                noteText = ""
                             }
                         }
                     }
@@ -372,7 +394,7 @@ struct ContentView: View {
                                         }
                                     }
                                     .pickerStyle(SegmentedPickerStyle())
-                                    .onChange(of: filterState.quickPreset) { newValue in
+                                    .onChange(of: filterState.quickPreset) { _, newValue in
                                         if newValue == .custom {
                                             filterState.setCustomDefaults()
                                         }
@@ -450,7 +472,7 @@ struct ContentView: View {
                                 .padding(.horizontal)
                     
                     if filteredExpenses.isEmpty {
-                        VStack {
+        VStack {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 30))
                                 .foregroundColor(.gray)
@@ -463,18 +485,31 @@ struct ContentView: View {
                     } else {
                         LazyVStack(spacing: 8) {
                             ForEach(filteredExpenses) { expense in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(dateFormatter.string(from: expense.date))
-                                            .foregroundColor(.secondary)
-                                            .font(.caption)
-                                        Text(expense.categoryName)
-                                            .font(.caption)
-                                            .foregroundColor(.blue)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(dateFormatter.string(from: expense.date))
+                                                .foregroundColor(.secondary)
+                                                .font(.caption)
+                                            Text(expense.categoryName)
+                                                .font(.caption)
+                                                .foregroundColor(.blue)
+                                        }
+                                        Spacer()
+                                        Text(numberFormatter.string(from: NSNumber(value: expense.amount)) ?? "$0")
+                                            .fontWeight(.medium)
                                     }
-                                    Spacer()
-                                    Text(numberFormatter.string(from: NSNumber(value: expense.amount)) ?? "$0")
-                                        .fontWeight(.medium)
+                                    
+                                    // 顯示備註（如果有且不為空）
+                                    if let note = expense.note, !note.isEmpty {
+                                        HStack {
+                                            Text(truncateNote(note))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(1)
+                                            Spacer()
+                                        }
+                                    }
                                 }
                                 .padding(.horizontal)
                                 .padding(.vertical, 8)

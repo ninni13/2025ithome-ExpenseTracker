@@ -6,13 +6,20 @@ class FirestoreService: ObservableObject {
     private let db = Firestore.firestore()
     
     func addExpense(userId: String, expense: Expense) {
-        db.collection("users").document(userId).collection("expenses").document(expense.id.uuidString).setData([
+        var data: [String: Any] = [
             "id": expense.id.uuidString,
             "amount": expense.amount,
             "date": expense.date,
             "categoryId": expense.categoryId,
             "categoryName": expense.categoryName
-        ]) { error in
+        ]
+        
+        // 如果有備註，則加入資料中
+        if let note = expense.note, !note.isEmpty {
+            data["note"] = note
+        }
+        
+        db.collection("users").document(userId).collection("expenses").document(expense.id.uuidString).setData(data) { error in
             if let error = error {
                 print("Error adding expense: \(error)")
             }
@@ -68,9 +75,12 @@ class FirestoreService: ObservableObject {
                         categoryName = oldCategoryName
                     }
                     
-                    print("Firestore: Creating expense with categoryId: \(categoryId), categoryName: \(categoryName), amount: \(amount)")
+                    // 讀取備註欄位
+                    let note = data["note"] as? String
                     
-                    return Expense(id: id, amount: amount, categoryId: categoryId, categoryName: categoryName, date: date.dateValue())
+                    print("Firestore: Creating expense with categoryId: \(categoryId), categoryName: \(categoryName), amount: \(amount), note: \(note ?? "nil")")
+                    
+                    return Expense(id: id, amount: amount, categoryId: categoryId, categoryName: categoryName, date: date.dateValue(), note: note)
                 }
                 
                 completion(expenses)

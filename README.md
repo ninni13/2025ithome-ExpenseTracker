@@ -1,7 +1,7 @@
 # ExpenseTracker - 記帳本 App
 
 一個使用 **SwiftUI** 開發的簡易記帳 App，作為 [iThome 鐵人賽 2025 — 30 天 Vibe Coding：全端 × 
-機器學習的實作挑戰](https://ithelp.ithome.com.tw/) 系列的 Side Project。
+機器學習的實作挑戰](https://ithelp.ithome.com.tw/users/20140998/ironman/8438) 系列的 Side Project。
 
 ## 功能特色
 
@@ -121,6 +121,12 @@ users/{userId}/expenses/{expenseId}
 - 新增快速篩選：全部 / 本月 / 上月 / 自訂日期區間
 - 可依「分類」篩選，僅顯示指定類別的支出
 - 支援「日期 + 分類」複合篩選，篩選總計會同步更新
+
+### Day 9 (備註功能)
+- 支出新增「備註」欄位，可記錄用途或細節（例如「和朋友聚餐」、「Uber 計程車」）
+- Firestore 文件結構新增 note: String? 欄位
+- 清單顯示支出時，同步顯示備註內容（過長時自動截斷）
+- 舊資料（沒有 note 欄位）仍能正常顯示，不會出錯
 
 ## 技術棧
 - **SwiftUI**
