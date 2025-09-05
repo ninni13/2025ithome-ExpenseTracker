@@ -10,7 +10,8 @@ class FirestoreService: ObservableObject {
             "id": expense.id.uuidString,
             "amount": expense.amount,
             "date": expense.date,
-            "category": expense.category
+            "categoryId": expense.categoryId,
+            "categoryName": expense.categoryName
         ]) { error in
             if let error = error {
                 print("Error adding expense: \(error)")
@@ -49,16 +50,27 @@ class FirestoreService: ObservableObject {
                     }
                     
                     // 檢查分類欄位（支援舊格式和新格式）
-                    var category = "未分類"  // 改為「未分類」
-                    if let newCategory = data["category"] as? String {
-                        category = newCategory
+                    var categoryId = ""
+                    var categoryName = "未分類"
+                    
+                    if let newCategoryId = data["categoryId"] as? String,
+                       let newCategoryName = data["categoryName"] as? String {
+                        // 新格式：有 categoryId 和 categoryName
+                        categoryId = newCategoryId
+                        categoryName = newCategoryName
+                    } else if let oldCategory = data["category"] as? String {
+                        // 舊格式：只有 category 字串
+                        categoryId = oldCategory
+                        categoryName = oldCategory
                     } else if let oldCategoryName = data["categoryName"] as? String {
-                        category = oldCategoryName
+                        // 舊格式：只有 categoryName
+                        categoryId = oldCategoryName
+                        categoryName = oldCategoryName
                     }
                     
-                    print("Firestore: Creating expense with category: \(category), amount: \(amount)")
+                    print("Firestore: Creating expense with categoryId: \(categoryId), categoryName: \(categoryName), amount: \(amount)")
                     
-                    return Expense(id: id, amount: amount, category: category, date: date.dateValue())
+                    return Expense(id: id, amount: amount, categoryId: categoryId, categoryName: categoryName, date: date.dateValue())
                 }
                 
                 completion(expenses)

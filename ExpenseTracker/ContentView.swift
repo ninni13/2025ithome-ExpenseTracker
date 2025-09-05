@@ -8,17 +8,90 @@
 import SwiftUI
 import FirebaseFirestore
 
+// 篩選狀態模型
+struct FilterState {
+    enum QuickPreset: String, CaseIterable {
+        case all = "全部"
+        case thisMonth = "本月"
+        case lastMonth = "上月"
+        case custom = "自訂"
+    }
+    
+    var quickPreset: QuickPreset = .thisMonth
+    var startDate: Date?
+    var endDate: Date?
+    var selectedCategoryIds: Set<String> = []
+    
+    // 初始化自訂日期的預設值
+    mutating func setCustomDefaults() {
+        let calendar = Calendar.current
+        let now = Date()
+        startDate = calendar.startOfDay(for: now)
+        endDate = calendar.startOfDay(for: now)
+    }
+    
+    // 計算實際的日期範圍
+    var effectiveDateRange: (start: Date, end: Date)? {
+        switch quickPreset {
+        case .all:
+            return nil
+        case .thisMonth:
+            let calendar = Calendar.current
+            let now = Date()
+            let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
+            let startOfNextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth) ?? now
+            return (startOfMonth, startOfNextMonth)
+        case .lastMonth:
+            let calendar = Calendar.current
+            let now = Date()
+            let lastMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+            let startOfLastMonth = calendar.dateInterval(of: .month, for: lastMonth)?.start ?? now
+            let startOfThisMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
+            return (startOfLastMonth, startOfThisMonth)
+        case .custom:
+            let calendar = Calendar.current
+            let start = startDate ?? calendar.startOfDay(for: Date())
+            let end = endDate ?? calendar.startOfDay(for: Date())
+            // 將結束日期設為當天的結束時間（23:59:59）
+            let endOfDay = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: end) ?? end
+            return (start, endOfDay)
+        }
+    }
+    
+    // 計算標題
+    var title: String {
+        switch quickPreset {
+        case .all:
+            return "全部歷史紀錄"
+        case .thisMonth:
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM"
+            return "\(formatter.string(from: Date())) 歷史紀錄"
+        case .lastMonth:
+            let calendar = Calendar.current
+            let lastMonth = calendar.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy/MM"
+            return "\(formatter.string(from: lastMonth)) 歷史紀錄"
+        case .custom:
+            return "自訂期間歷史紀錄"
+        }
+    }
+}
+
 // MARK: - Expense Model
 struct Expense: Identifiable, Codable {
     let id: UUID
     let amount: Double
-    let category: String
+    let categoryId: String   // Firestore 的 categoryId
+    let categoryName: String // 顯示用的名稱（去正規化）
     let date: Date
     
-    init(id: UUID = UUID(), amount: Double, category: String = "一般", date: Date) {
+    init(id: UUID = UUID(), amount: Double, categoryId: String, categoryName: String, date: Date) {
         self.id = id
         self.amount = amount
-        self.category = category
+        self.categoryId = categoryId
+        self.categoryName = categoryName
         self.date = date
     }
 }
@@ -42,8 +115,8 @@ class ExpenseStore: ObservableObject {
         listenerRegistration = nil
     }
     
-    func add(amount: Double, category: String, date: Date, userId: String) {
-        let expense = Expense(amount: amount, category: category, date: date)
+    func add(amount: Double, categoryId: String, categoryName: String, date: Date, userId: String) {
+        let expense = Expense(amount: amount, categoryId: categoryId, categoryName: categoryName, date: date)
         firestoreService.addExpense(userId: userId, expense: expense)
     }
     
@@ -72,14 +145,14 @@ class ExpenseStore: ObservableObject {
         
         print("ExpenseStore: Found \(monthlyExpenses.count) expenses for current month")
         for expense in monthlyExpenses {
-            print("ExpenseStore: \(expense.category) - $\(expense.amount) - \(expense.date)")
+            print("ExpenseStore: \(expense.categoryName) - $\(expense.amount) - \(expense.date)")
         }
         
         // 按類別分組並計算總額
         var categoryTotals: [String: Double] = [:]
         
         for expense in monthlyExpenses {
-            categoryTotals[expense.category, default: 0] += expense.amount
+            categoryTotals[expense.categoryName, default: 0] += expense.amount
         }
         
         print("ExpenseStore: Category totals: \(categoryTotals)")
@@ -103,6 +176,9 @@ struct ContentView: View {
     @State private var showingCategoryManagement = false
     @State private var showingBudgetSettings = false
     
+    // 篩選相關狀態
+    @State private var filterState = FilterState()
+    
     private let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -115,6 +191,37 @@ struct ContentView: View {
         formatter.dateFormat = "yyyy/MM/dd"
         return formatter
     }()
+    
+    // 篩選後的支出列表
+    private var filteredExpenses: [Expense] {
+        let filtered = expenseStore.expenses.filter { expense in
+            // 日期範圍篩選
+            let isInDateRange: Bool
+            if let dateRange = filterState.effectiveDateRange {
+                isInDateRange = expense.date >= dateRange.start && expense.date <= dateRange.end
+            } else {
+                isInDateRange = true  // 沒有日期限制時，所有日期都通過
+            }
+            
+            // 分類篩選
+            let isInCategory: Bool
+            if filterState.selectedCategoryIds.isEmpty {
+                isInCategory = true  // 沒有選擇分類時，所有分類都通過
+            } else {
+                isInCategory = filterState.selectedCategoryIds.contains(expense.categoryId)
+            }
+            
+            return isInDateRange && isInCategory
+        }
+        
+        return filtered.sorted(by: { $0.date > $1.date })
+    }
+    
+    // 篩選後的總支出
+    private var filteredTotal: Double {
+        return filteredExpenses.reduce(0) { $0 + $1.amount }
+    }
+    
     
     private var amount: Double {
         Double(amountText) ?? 0
@@ -168,7 +275,7 @@ struct ContentView: View {
                         if let userId = authManager.currentUser?.uid {
                             if let category = categoryStore.categories.first(where: { $0.id == selectedCategoryId }) {
                                 print("ContentView: Adding expense - Amount: \(amount), Category: \(category.name), Date: \(selectedDate)")
-                                expenseStore.add(amount: amount, category: category.name, date: selectedDate, userId: userId)
+                                expenseStore.add(amount: amount, categoryId: selectedCategoryId, categoryName: category.name, date: selectedDate, userId: userId)
                                 amountText = ""
                                 selectedCategoryId = ""
                             }
@@ -251,18 +358,103 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
                 
-                // Historical Records
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("歷史紀錄")
-                        .font(.headline)
-                        .padding(.horizontal)
+                                            // Filter Controls
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("篩選條件")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                
+                                VStack(spacing: 12) {
+                                    // 快速篩選選項
+                                    Picker("快速篩選", selection: $filterState.quickPreset) {
+                                        ForEach(FilterState.QuickPreset.allCases, id: \.self) { preset in
+                                            Text(preset.rawValue).tag(preset)
+                                        }
+                                    }
+                                    .pickerStyle(SegmentedPickerStyle())
+                                    .onChange(of: filterState.quickPreset) { newValue in
+                                        if newValue == .custom {
+                                            filterState.setCustomDefaults()
+                                        }
+                                    }
+                                    
+                                    // 自訂日期選擇（只有選擇自訂時才顯示）
+                                    if filterState.quickPreset == .custom {
+                                        HStack {
+                                            VStack(alignment: .leading) {
+                                                Text("起始日期")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                DatePicker("", selection: Binding(
+                                                    get: { filterState.startDate ?? Date() },
+                                                    set: { filterState.startDate = $0 }
+                                                ), displayedComponents: .date)
+                                                    .labelsHidden()
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            VStack(alignment: .leading) {
+                                                Text("結束日期")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                DatePicker("", selection: Binding(
+                                                    get: { filterState.endDate ?? Date() },
+                                                    set: { filterState.endDate = $0 }
+                                                ), displayedComponents: .date)
+                                                    .labelsHidden()
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 分類選擇
+                                    HStack {
+                                        Text("分類:")
+                                            .font(.subheadline)
+                                        Spacer()
+                                        Picker("分類", selection: Binding(
+                                            get: { filterState.selectedCategoryIds.isEmpty ? "" : filterState.selectedCategoryIds.first! },
+                                            set: { newValue in
+                                                if newValue.isEmpty {
+                                                    filterState.selectedCategoryIds = []
+                                                } else {
+                                                    filterState.selectedCategoryIds = [newValue]
+                                                }
+                                            }
+                                        )) {
+                                            Text("全部").tag("")
+                                            ForEach(categoryStore.categories) { category in
+                                                Text(category.name).tag(category.id)
+                                            }
+                                        }
+                                        .pickerStyle(MenuPickerStyle())
+                                    }
+                                    
+                                }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                                .padding(.horizontal)
+                            }
+
+                            // Historical Records
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(filterState.title)
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("篩選總計: \(numberFormatter.string(from: NSNumber(value: filteredTotal)) ?? "$0")")
+                                        .font(.subheadline)
+                                        .foregroundColor(.red)
+                                }
+                                .padding(.horizontal)
                     
-                    if expenseStore.expenses.isEmpty {
+                    if filteredExpenses.isEmpty {
                         VStack {
-                            Image(systemName: "list.bullet")
+                            Image(systemName: "magnifyingglass")
                                 .font(.system(size: 30))
                                 .foregroundColor(.gray)
-                            Text("尚無支出紀錄")
+                            Text("無符合篩選條件的紀錄")
                                 .foregroundColor(.gray)
                                 .padding(.top, 8)
                         }
@@ -270,13 +462,13 @@ struct ContentView: View {
                         .padding(.vertical, 20)
                     } else {
                         LazyVStack(spacing: 8) {
-                            ForEach(expenseStore.expenses.sorted(by: { $0.date > $1.date })) { expense in
+                            ForEach(filteredExpenses) { expense in
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(dateFormatter.string(from: expense.date))
                                             .foregroundColor(.secondary)
                                             .font(.caption)
-                                        Text(expense.category)
+                                        Text(expense.categoryName)
                                             .font(.caption)
                                             .foregroundColor(.blue)
                                     }
