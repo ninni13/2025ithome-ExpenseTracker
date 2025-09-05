@@ -9,7 +9,7 @@
 - 自動登入狀態檢查
 - 安全登出功能
 
-![登入頁面](images/login.png)
+<img src="images/login.png" alt="登入頁面" width="300">
 
 ### 💰 記帳功能
 - 金額輸入
@@ -25,11 +25,11 @@
 - 圖表分析並顯示各類別支出佔比與統計摘要
 - 每月預算設定與即時同步，若超過預算時會紅色提示「⚠️ 已超支」
 
-![金額輸入以及篩選](images/input.png)
-![支出清單](images/history.png)
-![類別管理](images/categ manage.png)
-![預算管理](images/budget setting.png)
-![圓餅圖](images/chart.png)
+<img src="images/input.png" alt="金額輸入以及篩選" width="300">
+<img src="images/history.png" alt="支出清單" width="300">
+<img src="images/categ manage.png" alt="類別管理" width="300">
+<img src="images/budget setting.png" alt="預算管理" width="300">
+<img src="images/chart.png" alt="圓餅圖" width="300">
 
 ### ☁️ 雲端儲存
 - Firebase Firestore 即時資料同步
