@@ -96,10 +96,12 @@ struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var expenseStore: ExpenseStore
     @EnvironmentObject var categoryStore: CategoryStore
+    @EnvironmentObject var budgetStore: BudgetStore
     @State private var amountText = ""
     @State private var selectedDate = Date()
     @State private var selectedCategoryId = ""
     @State private var showingCategoryManagement = false
+    @State private var showingBudgetSettings = false
     
     private let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
@@ -179,14 +181,73 @@ struct ContentView: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
                 
-                // Monthly Total
-                HStack {
-                    Text("本月總支出:")
-                        .font(.headline)
-                    Spacer()
-                    Text(numberFormatter.string(from: NSNumber(value: expenseStore.monthlyTotal)) ?? "$0")
-                        .font(.headline)
-                        .foregroundColor(.red)
+                // Budget and Monthly Total Section
+                VStack(spacing: 12) {
+                    // Monthly Total
+                    HStack {
+                        Text("本月總支出:")
+                            .font(.headline)
+                        Spacer()
+                        Text(numberFormatter.string(from: NSNumber(value: expenseStore.monthlyTotal)) ?? "$0")
+                            .font(.headline)
+                            .foregroundColor(.red)
+                    }
+                    
+                    // Budget Information
+                    if budgetStore.monthlyBudget > 0 {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("本月預算:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(numberFormatter.string(from: NSNumber(value: budgetStore.monthlyBudget)) ?? "$0")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            HStack {
+                                Text("剩餘金額:")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                let remaining = budgetStore.getRemainingBudget(totalExpenses: expenseStore.monthlyTotal)
+                                Text(numberFormatter.string(from: NSNumber(value: remaining)) ?? "$0")
+                                    .font(.subheadline)
+                                    .foregroundColor(remaining >= 0 ? .green : .red)
+                            }
+                            
+                                                                    // Over Budget Warning
+                                        if budgetStore.isOverBudget(totalExpenses: expenseStore.monthlyTotal) {
+                                            HStack {
+                                                Spacer()
+                                                Text("⚠️ 已超支")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.red)
+                                                    .fontWeight(.bold)
+                                                Spacer()
+                                            }
+                                        }
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    } else {
+                        HStack {
+                            Text("尚未設定預算")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Button("設定預算") {
+                                showingBudgetSettings = true
+                            }
+                            .font(.caption)
+                            .foregroundColor(.pink)
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
                 }
                 .padding(.horizontal)
                 
@@ -248,8 +309,19 @@ struct ContentView: View {
             .navigationTitle("霓的記帳本")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                leading: Button("類別管理") {
-                    showingCategoryManagement = true
+                leading: Menu {
+                    Button("類別管理") {
+                        showingCategoryManagement = true
+                    }
+                    Button("預算管理") {
+                        showingBudgetSettings = true
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("管理")
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                    }
                 },
                 trailing: Button("登出") {
                     authManager.signOut()
@@ -262,6 +334,7 @@ struct ContentView: View {
                 print("ContentView: User ID: \(userId)")
                 expenseStore.startListening(userId: userId)
                 categoryStore.startListening(userId: userId)
+                budgetStore.startListening(userId: userId)
             } else {
                 print("ContentView: No user ID found")
             }
@@ -269,9 +342,13 @@ struct ContentView: View {
         .onDisappear {
             expenseStore.stopListening()
             categoryStore.stopListening()
+            budgetStore.stopListening()
         }
         .sheet(isPresented: $showingCategoryManagement) {
             CategoryManagementView()
+        }
+        .sheet(isPresented: $showingBudgetSettings) {
+            BudgetSettingsView()
         }
     }
 }
@@ -281,4 +358,5 @@ struct ContentView: View {
         .environmentObject(AuthManager())
         .environmentObject(ExpenseStore())
         .environmentObject(CategoryStore())
+        .environmentObject(BudgetStore())
 }

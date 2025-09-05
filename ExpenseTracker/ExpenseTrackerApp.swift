@@ -14,6 +14,7 @@ struct ExpenseTrackerApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var expenseStore = ExpenseStore()
     @StateObject private var categoryStore = CategoryStore()
+    @StateObject private var budgetStore = BudgetStore()
     
     var body: some Scene {
         WindowGroup {
@@ -23,6 +24,7 @@ struct ExpenseTrackerApp: App {
                         .environmentObject(authManager)
                         .environmentObject(expenseStore)
                         .environmentObject(categoryStore)
+                        .environmentObject(budgetStore)
                 } else {
                     LoginView()
                         .environmentObject(authManager)
