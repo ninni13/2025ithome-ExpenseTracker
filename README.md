@@ -1,7 +1,6 @@
 # ExpenseTracker - 記帳本 App
 
-一個使用 **SwiftUI** 開發的簡易記帳 App，作為 [iThome 鐵人賽 2025 — 30 天 Vibe Coding：全端 × 
-機器學習的實作挑戰](https://ithelp.ithome.com.tw/users/20140998/ironman/8438) 系列的 Side Project。
+一個使用 **SwiftUI** 開發的簡易記帳 App，作為 [iThome 鐵人賽 2025 — 30 天 Vibe Coding：全端 × 機器學習的實作挑戰](https://ithelp.ithome.com.tw/users/20140998/ironman/8438) 系列的 Side Project。
 
 ## 功能特色
 
@@ -10,12 +9,27 @@
 - 自動登入狀態檢查
 - 安全登出功能
 
+![登入頁面](images/login.png)
+
 ### 💰 記帳功能
-- 金額輸入（支援小數點）
-- 支出分類選擇
-- 日期選擇（預設今天）
-- 即時支出清單
-- 本月總支出計算
+- 金額輸入
+- 支出分類選擇（可建立、重新命名、刪除，避免刪除仍在使用的類別）
+- 日期選擇（預設今天，可自訂日期區間）
+- 備註欄位（記錄用途或細節）
+- 即時支出清單（自動依日期排序）
+- 本月總支出計算與即時更新
+- 長按刪除支出
+- 搜尋與篩選
+- 快速篩選：全部 / 本月 / 上月 / 自訂日期區間
+- 依分類篩選，支援「日期 + 分類」複合條件
+- 圖表分析並顯示各類別支出佔比與統計摘要
+- 每月預算設定與即時同步，若超過預算時會紅色提示「⚠️ 已超支」
+
+![金額輸入以及篩選](images/input.png)
+![支出清單](images/history.png)
+![類別管理](images/categ manage.png)
+![預算管理](images/budget setting.png)
+![圓餅圖](images/chart.png)
 
 ### ☁️ 雲端儲存
 - Firebase Firestore 即時資料同步
@@ -74,6 +88,10 @@ users/{userId}/expenses/{expenseId}
 3. **查看清單**: 所有支出會即時顯示在清單中
 4. **刪除支出**: 左滑支出項目即可刪除
 5. **登出**: 點擊右上角「登出」按鈕
+
+### 開發過程
+專案是在 iThome 鐵人賽 30 天挑戰中完成。雖然每天文章裡都有提供 Prompt，但實際開發並不是只靠這一段就能完成功能，而是需要不斷和 AI 對話、測試與修正，最後才達到理想效果。
+
 
 ## 注意事項
 
@@ -134,8 +152,16 @@ users/{userId}/expenses/{expenseId}
 - 可使用 iCloud / AirDrop / 系統分享功能輸出檔案
 - 專案進入總結：功能回顧、踩雷經驗、優化方向
 
+### 未來優化方向
+- 增加長條圖、折線圖等報表
+- 改善 UI/UX：卡片式清單、動畫
+- 加強 Firestore 安全性規則
+
 ## 技術棧
 - **SwiftUI**
 - **iOS 17+**
 - **Xcode 15+**
 - 資料儲存：UserDefaults (Day 3 MVP) → Firebase Firestore (Day 4)
+
+### 本專案僅供學習與展示使用
+### 更多開發細節可參考系列文章：[30 天 Vibe Coding：全端 × 機器學習的實作挑戰](https://ithelp.ithome.com.tw/users/20140998/ironman/8438)
