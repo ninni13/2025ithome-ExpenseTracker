@@ -25,10 +25,8 @@
 - 圖表分析並顯示各類別支出佔比與統計摘要
 - 每月預算設定與即時同步，若超過預算時會紅色提示「⚠️ 已超支」
 
-<img src="images/input.png" alt="金額輸入以及篩選" width="300">
-<img src="images/history.png" alt="支出清單" width="300">
-<img src="images/categ manage.png" alt="類別管理" width="300">
-<img src="images/budget setting.png" alt="預算管理" width="300">
+<img src="images/input.png" alt="金額輸入以及篩選" width="300"><img src="images/history.png" alt="支出清單" width="300">
+<img src="images/categ manage.png" alt="類別管理" width="300"><img src="images/budget setting.png" alt="預算管理" width="300">
 <img src="images/chart.png" alt="圓餅圖" width="300">
 
 ### ☁️ 雲端儲存
